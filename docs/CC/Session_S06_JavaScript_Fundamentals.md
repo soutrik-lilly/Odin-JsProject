@@ -76,6 +76,31 @@ console.log(taskA.title);  // "Learn JS deeply" — both variables point at the 
 
 **Predict before you peek, now that you have the real mechanism:** given this, would `Object.freeze(taskA)` — a real, built-in method — prevent `taskA.title` from being reassigned? *(Yes — `Object.freeze()` operates on the object itself, not the variable, making every one of its own properties read-only. This is different from, and a genuine complement to, what `const` does: `const` freezes which object a variable points at; `Object.freeze()` freezes the object being pointed at. Using both together is how you'd get the "fully immutable" behavior a beginner often mistakenly assumes `const` alone provides.)*
 
+### Explicit Type Conversion — Doing It on Purpose, Not by Accident
+
+Session S05's Pitfall 1 showed `==` silently converting types for you, as an accident to avoid. Here are the same conversions, done deliberately, on purpose, with functions built for exactly this:
+
+```javascript
+Number("42");      // 42
+Number("42px");    // NaN — the ENTIRE string must be numeric, no trailing junk allowed
+String(42);         // "42"
+Boolean(0);          // false
+Boolean("0");        // true — a non-empty string, per Session S05's falsy list
+```
+
+`Number()`, `String()`, and `Boolean()` called as plain functions (not with `new` — that produces a wrapper object instead, a distinction covered properly in a moment) explicitly convert their argument to the named type, using clear, documented rules rather than the more surprising implicit coercion `==` performs.
+
+**The `+` operator's own special coercion rule, worth knowing precisely because it differs from every other arithmetic operator:**
+```javascript
+console.log(1 + 2);        // 3 — both numbers, ordinary addition
+console.log("1" + 2);      // "12" — if EITHER side is a string, + concatenates instead of adding
+console.log(1 + "2" + 3);  // "123" — left to right: 1+"2" becomes "12", then "12"+3 becomes "123"
+console.log("5" - 2);      // 3 — minus, unlike plus, always converts to numbers first, no exception
+```
+`+` is unique among the arithmetic operators: if *either* operand is a string, it switches to string concatenation instead of addition. Every other arithmetic operator (`-`, `*`, `/`) always converts both sides to numbers first, no exception — which is exactly why `"5" - 2` cleanly produces `3` while `"5" + 2` produces the string `"52"`. This asymmetry is a real, well-documented source of confusion precisely because `+` is the one operator that behaves differently from its siblings.
+
+**Predict before you peek:** what does `Number("")` produce — `0`, `NaN`, or something else? *(`0` — an empty string converts to `0`, not `NaN`, which surprises people expecting "nothing" to mean "not a number." This is genuinely different from `Number("abc")`, which correctly produces `NaN` for text that isn't numeric at all. Worth testing this distinction directly, since it's a real source of subtle bugs in form-input validation, where an empty field and a genuinely invalid one need to be told apart.)*
+
 ---
 
 ## 2. Optional Chaining & Nullish Coalescing — Handling "Maybe Nothing" Cleanly
@@ -389,7 +414,62 @@ console.log(total);  // 3
 
 ---
 
-## 7. ES Modules — Splitting Code Across Files
+## 7. `Map`, `Set`, and Iterating Over Objects
+
+### `Map` — a real key-value collection, not a plain object pretending to be one
+
+You've used plain objects as key-value stores throughout this session (`tasksById[task.id]`, from Session S06's earlier reduce example). `Map` is a dedicated, purpose-built collection for exactly that job, with real advantages a plain object doesn't have:
+
+```javascript
+const taskStatus = new Map();
+taskStatus.set(1, "pending");
+taskStatus.set(2, "done");
+
+console.log(taskStatus.get(1));     // "pending"
+console.log(taskStatus.has(2));     // true
+console.log(taskStatus.size);       // 2
+
+for (const [id, status] of taskStatus) {
+  console.log(id, status);
+}
+```
+
+**Two real advantages over a plain object, precisely stated.** A `Map`'s keys can be *any* value — an object, a function, `NaN` — where a plain object silently converts every key to a string (`obj[someObject]` actually uses `"[object Object]"` as the real key, a genuine, easy-to-miss footgun). And `Map` tracks its own `.size` directly and is directly iterable with `for...of` (Session S07's upcoming iterables territory) — a plain object needs `Object.keys(obj).length` and can't be looped with `for...of` at all without extra work.
+
+### `Set` — a collection that only ever holds unique values
+
+```javascript
+const uniqueTags = new Set(["work", "urgent", "work", "personal"]);
+console.log(uniqueTags.size);        // 3 — the duplicate "work" was silently ignored
+console.log(uniqueTags.has("urgent"));  // true
+uniqueTags.add("home");
+
+const uniqueArray = [...uniqueTags];  // Session S06's own spread operator, converting back to an array
+```
+
+Adding a value to a `Set` that's already present is a silent no-op — this makes `Set` the standard, idiomatic tool for deduplicating a list, exactly as the example above does, and `[...someSet]` (spread) is the standard way to get a plain array back out when you need array methods on the result.
+
+### `Object.keys()`, `Object.values()`, `Object.entries()` — Iterating a Plain Object's Own Data
+
+```javascript
+const task = {id: 1, title: "Buy milk", done: false};
+
+console.log(Object.keys(task));    // ["id", "title", "done"]
+console.log(Object.values(task));  // [1, "Buy milk", false]
+console.log(Object.entries(task)); // [["id", 1], ["title", "Buy milk"], ["done", false]]
+
+for (const [key, value] of Object.entries(task)) {
+  console.log(`${key}: ${value}`);
+}
+```
+
+Plain objects aren't directly iterable with `for...of` the way arrays and `Map`s are — these three methods are the standard bridge, each converting an object's own data into a real array you already know how to work with. `Object.entries()` combined with `for...of`'s array-destructuring (Session S06's own Section 4) is the single most common pattern for genuinely looping over an object's key-value pairs, and it's precisely how you'd render a settings object's fields dynamically without hardcoding each key by name.
+
+**Predict before you peek:** given `Object.values()` returns an array, could you chain `.filter()` directly onto `Object.values(someObject)`? *(Yes — `Object.values()` returns a genuine, ordinary array, so every array method from earlier in this session applies immediately: `Object.values(task).filter(v => typeof v === "string")` would correctly return `["Buy milk"]`. This is exactly why these three methods matter as a *bridge* — they don't introduce new array-like behavior, they hand you back into the tools you already have.)*
+
+
+
+## 8. ES Modules — Splitting Code Across Files
 
 Every example so far has lived in one imaginary file. Real projects — including the actual BIA monorepo this syllabus builds toward — split code across many files, and **ES Modules** are the standard, current mechanism for sharing code between them.
 
@@ -434,7 +514,7 @@ This is precisely the pattern the real BIA monorepo's `@cats-aia/core` package u
 
 ---
 
-## 8. Bringing It Together — Both Threads, Every Tool From Today
+## 9. Bringing It Together — Both Threads, Every Tool From Today
 
 ```javascript
 // ───── Thread A: BIA ─────
@@ -475,7 +555,7 @@ console.log(summarize(tasks));
 
 ---
 
-## 9. Production Relevance
+## 10. Production Relevance
 
 **The optional-chaining-plus-nullish-coalescing combination is, empirically, one of the most-adopted single features in modern JavaScript's recent history** — surveys of real production codebases since ES2020 consistently show `?.` among the fastest-adopted syntax additions, precisely because the "crash on missing nested data" problem it solves is close to universal in real applications handling external data (API responses, user input, config files).
 
@@ -483,7 +563,7 @@ console.log(summarize(tasks));
 
 ---
 
-## 10. Practice Exercises
+## 11. Practice Exercises
 
 ### Exercise 1 (Easy) — Optional Chaining Drill
 
@@ -505,7 +585,7 @@ Create two files: `messageUtils.js` with two named exports — `formatMessage({r
 
 ---
 
-## 11. Common Pitfalls
+## 12. Common Pitfalls
 
 ### Pitfall 1 — The Shallow Clone Trap (This Session's Official Gotcha)
 
@@ -551,7 +631,7 @@ function setPageSize(size) {
 
 ---
 
-## 12. Further Reading
+## 13. Further Reading
 
 **MDN — Optional Chaining**
 The official reference for Section 2, including edge cases with function calls (`obj.method?.()`).
@@ -566,7 +646,7 @@ The official reference for every method in Section 6's table.
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Indexed_collections
 
 **MDN — JavaScript Modules Guide**
-The official reference for Section 7.
+The official reference for Section 8.
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
 
 **The Odin Project — "Fundamentals Part 4," "Fundamentals Part 5," "Object Basics"**
@@ -575,7 +655,7 @@ https://www.theodinproject.com/paths/foundations/courses/foundations
 
 ---
 
-## 13. How This Session Compares to The Odin Project
+## 14. How This Session Compares to The Odin Project
 
 Odin's "Fundamentals Part 4" and "Object Basics" lessons cover destructuring, spread, and array methods at a genuinely solid introductory level, and its own framing — "by this point, you have learned many of the fundamentals of JavaScript... before you know it, you'll have a better understanding of how powerful objects and arrays are" — matches this session's own emphasis on Section 6 as a real payoff moment, not an incidental topic.
 
@@ -585,13 +665,13 @@ Odin's "Fundamentals Part 4" and "Object Basics" lessons cover destructuring, sp
 
 ---
 
-## 14. Bridge to Session S07
+## 15. Bridge to Session S07
 
 Today gave Thread B's tasks a real collection to live in — arrays of objects, transformed and queried with the tools you just learned. Session S07 asks a different question about those same objects: not "how do I work with a collection of them," but "how do I *build* them in a structured, reusable way in the first place." Object-oriented JavaScript — factory functions, constructors, classes, and the prototype mechanism underneath all three — is where a `{id, title, done}` object literal you've been hand-writing every time becomes a `Task` you can *construct*, with built-in behavior (a `.complete()` method) attached. Nothing from today gets replaced; classes and factory functions still produce the exact same kind of plain objects Section 6's array methods already know how to work with.
 
 ---
 
-## 15. Key Takeaways Checklist
+## 16. Key Takeaways Checklist
 
 - [ ] List all seven JavaScript primitive types from memory
 - [ ] Explain why `typeof null === 'object'`, historically, not just that it's true

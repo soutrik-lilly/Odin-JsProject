@@ -89,6 +89,30 @@ console.log("BIA Assistant is ready.");
 console.log("Task Tracker initialized.");
 ```
 
+### `"use strict"` — Opting Into JavaScript's Stricter, Safer Mode
+
+```javascript
+"use strict";
+
+x = 5;  // ReferenceError: x is not defined
+```
+
+A plain string, written as the very first line of a script or function, tells JavaScript to run in **strict mode** — a stricter rule set that turns several historically-silent mistakes into real, loud errors instead. Without it, `x = 5` with no `let`/`const`/`var` declaration silently creates a global variable — a genuine, longstanding footgun; with `"use strict"`, the identical line throws immediately, catching the typo (a missing declaration) the moment it happens instead of letting it corrupt global state invisibly.
+
+**You have already been living inside strict mode without being told, for a specific reason worth naming now:** Session S06's ES Modules section mentioned, in passing, that modules "always use strict mode" — this is that promise, named properly. Every `<script type="module">` and every `import`/`export`-based file is automatically strict, with no `"use strict"` line needed. You'll only ever need to write it explicitly in a plain, non-module script — which, going forward in this syllabus, you mostly won't be writing, since Session S06 already established modules as the default. Worth knowing the directive exists and what it does, even though the module system is quietly doing this for you already.
+
+### `alert`, `prompt`, `confirm` — the Browser's Oldest Interaction Tools
+
+```javascript
+alert("Task saved!");                          // a blocking pop-up message, OK button only
+const name = prompt("What's your name?", "");  // a blocking pop-up with a text input, returns the typed string or null if canceled
+const proceed = confirm("Delete this task?");  // a blocking Yes/No pop-up, returns true or false
+```
+
+These three are the browser's original, built-in way to interact with a user — no HTML needed at all. **All three are blocking**: JavaScript execution genuinely pauses on the line calling them until the user dismisses the dialog, which is exactly why none of them appear anywhere in the real BIA UI or in this session's own capstone examples — a blocking dialog freezing the entire page is precisely the opposite of the responsive, non-blocking interfaces this whole syllabus builds toward. They're worth knowing for two honest reasons: you'll see them in nearly every other JavaScript tutorial and in quick debugging scratch-work, and `confirm`'s true/false return value is a clean, tiny way to test a conditional branch in the Console without building any real UI first.
+
+**Predict before you peek:** if a user clicks "Cancel" on a `prompt()` dialog instead of typing anything and clicking OK, what does `prompt()` return — an empty string, or something else? *(`null` — specifically distinct from an empty string, which is what you'd get if the user clicked OK with the input left blank. This is exactly the `null`-versus-`""` distinction worth checking explicitly if you ever do use `prompt()` for real, similar in spirit to Session S06's `null`-versus-`undefined` precision.)*
+
 ---
 
 ## 4. Variables From Absolute Zero
@@ -208,6 +232,76 @@ if (taskCount === 0) {
   console.log("You have tasks");
 }
 ```
+
+### `while` and `do...while` — Looping When You Don't Know the Count in Advance
+
+`for` is the right tool when you know how many times to loop before you start (Section 5's own examples all knew the exact count up front). `while` is for the opposite situation: keep looping *as long as a condition holds*, with no predetermined number of iterations.
+
+```javascript
+let remainingTasks = 3;
+while (remainingTasks > 0) {
+  console.log(`${remainingTasks} task(s) left`);
+  remainingTasks--;
+}
+```
+
+`while` checks its condition *before* every iteration, including the very first one — if `remainingTasks` had started at `0`, the loop body would never run at all. `do...while` flips this guarantee:
+
+```javascript
+let attempts = 0;
+do {
+  attempts++;
+  console.log(`Attempt ${attempts}`);
+} while (attempts < 3 && !taskSaved());
+```
+
+`do...while` runs its body **once, unconditionally**, before checking the condition for the first time — the correct choice specifically when "try at least once, then keep retrying if needed" is the actual shape of the problem, which a plain `while` can't express as directly (a plain `while` checking the same condition first might skip the body entirely if the condition already happens to be false).
+
+**Predict before you peek:** if `remainingTasks` in the first example started at `0` instead of `3`, would `"0 task(s) left"` ever print? *(No — `while` checks `remainingTasks > 0` before the very first iteration, and `0 > 0` is `false`, so the loop body never runs at all. This is the exact detail that distinguishes `while` from `do...while` — worth testing yourself with both starting values to feel the difference directly, not just read about it.)*
+
+### The `switch` Statement — Cleaner Multi-Way Branching
+
+```javascript
+function describeStatus(status) {
+  switch (status) {
+    case "pending":
+      return "Waiting to start";
+    case "active":
+      return "In progress";
+    case "done":
+      return "Complete";
+    default:
+      return "Unknown status";
+  }
+}
+```
+
+`switch` compares one value (`status`) against several possible exact matches, running the matching `case`'s code — functionally similar to a long `if`/`else if`/`else if`/`else` chain checking the same variable against different values each time, but often more readable once there are more than two or three branches. `switch` uses **strict equality** (`===`) for its comparisons — the same precise, no-coercion matching Session S05's own Pitfall 1 already taught you to prefer.
+
+**The `break` gotcha, stated as a hard rule because getting it wrong is a real, classic bug.** Without an explicit `return` or `break` at the end of a matching case, execution **falls through** into the *next* case's code, regardless of whether that next case's own condition matches:
+
+```javascript
+function badExample(status) {
+  let result;
+  switch (status) {
+    case "pending":
+      result = "Waiting";
+      // no break — falls through!
+    case "active":
+      result = "In progress";
+      break;
+    default:
+      result = "Unknown";
+  }
+  return result;
+}
+
+console.log(badExample("pending"));  // "In progress" — NOT "Waiting", because of fall-through
+```
+
+Using `return` inside a function (as the first `describeStatus` example does) sidesteps this entirely, since `return` exits the function immediately regardless of fall-through — which is why, in practice, `switch` statements inside functions very often use `return` in every case rather than assigning to a variable and needing an explicit `break` on each one.
+
+**You already met `switch` used for real, without its own explanation, back in Session S11's `parseAgentSSE`** — the `switch (event.type)` block handling `"token"`, `"error"`, and unknown event types. Go back and reread that block now: it should read as ordinary, explained syntax rather than something you were pattern-matching around without a name for it.
 
 ---
 

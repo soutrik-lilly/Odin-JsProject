@@ -91,7 +91,85 @@ The detail worth noticing: with *two* macrotasks queued, they still run strictly
 
 ---
 
-## 2. Promises — States, Chaining, and What "Unhandled" Actually Means
+## 2. Error Handling, Synchronously — Before Async Complicates It
+
+Every `try`/`catch` you've seen so far in this syllabus has been wrapped around an `await`. Here is the same mechanism, in the plain, synchronous form it actually started as — worth understanding on its own before the async version layers anything on top of it.
+
+```javascript
+function validateTaskTitle(title) {
+  if (title.trim().length === 0) {
+    throw new Error("Task title cannot be empty");
+  }
+  return title.trim();
+}
+
+try {
+  const clean = validateTaskTitle("");
+  console.log(clean);
+} catch (err) {
+  console.error("Validation failed:", err.message);
+} finally {
+  console.log("Validation attempt complete.");
+}
+```
+
+`throw` immediately stops normal execution and hands control to the *nearest* enclosing `catch` — skipping everything else in the `try` block, exactly the way `return` skips everything after it in a function, just propagating outward through function calls instead of just exiting one function. `new Error("...")` creates a real object with a `.message` property (what you passed in) and a `.stack` property (a trace of where it was thrown) — both genuinely useful when debugging, not just a plain string. `finally` runs whether the `try` succeeded or the `catch` caught something — the exact same unconditional-cleanup guarantee Session S11's `reader.releaseLock()` already relied on, now shown in its plain, synchronous original form.
+
+### Custom Errors — Extending `Error` Itself
+
+```javascript
+class ValidationError extends Error {
+  constructor(message, field) {
+    super(message);       // Error's own constructor sets up .message and .stack correctly
+    this.name = "ValidationError";
+    this.field = field;
+  }
+}
+
+function validateTaskTitle(title) {
+  if (title.trim().length === 0) {
+    throw new ValidationError("Task title cannot be empty", "title");
+  }
+  return title.trim();
+}
+
+try {
+  validateTaskTitle("");
+} catch (err) {
+  if (err instanceof ValidationError) {
+    console.error(`Validation error on field "${err.field}": ${err.message}`);
+  } else {
+    throw err;   // an error type this catch block doesn't know how to handle — let it propagate further
+  }
+}
+```
+
+`class ValidationError extends Error` is Session S07's own inheritance syntax, applied to `Error` specifically — `super(message)` calls `Error`'s own constructor first, which is what correctly wires up `.message` and `.stack`, before adding a custom `.field` property of your own. This matters in real code precisely because `instanceof` (used, not fully explained, back in Session S07's Exercise 3) now lets a `catch` block distinguish *which kind* of error it's actually handling — a validation problem you can show the user directly, versus a genuinely unexpected bug that should propagate further rather than being silently swallowed. `throw err;` inside a `catch` — re-throwing an error type you don't know how to handle — is the correct response to "this isn't mine to handle," exactly the same judgment call Session S11's own `parseAgentSSE` made when it deliberately let a `reader.read()` failure propagate rather than pretending to recover from it.
+
+**Predict before you peek:** if `catch (err)` in the example above received a plain `TypeError` (an entirely different, unrelated bug) instead of a `ValidationError`, what would happen? *(The `if (err instanceof ValidationError)` check would be `false`, falling into the `else` branch, which re-throws the error unchanged — correct behavior, since a validation-specific catch block has no business pretending to handle a bug it doesn't understand. Swallowing every error type indiscriminately, regardless of what it actually is, is a real, common anti-pattern this `instanceof` check exists specifically to prevent.)*
+
+---
+
+## 3. Promises — States, Chaining, and What "Unhandled" Actually Means
+
+### The Problem Promises Actually Solve, Felt First
+
+Before Promises existed in the language, asynchronous code was handled entirely through **callbacks** — a function passed to another function, to be called later once some async work finished:
+
+```javascript
+loadTasks(function (tasks) {
+  loadProjectFor(tasks[0], function (project) {
+    loadTeamMembers(project, function (members) {
+      console.log("Finally have everything:", tasks, project, members);
+      // error handling for EACH of these three steps would need its own separate check here
+    });
+  });
+});
+```
+
+**Predict before you peek:** as a fourth, fifth, and sixth async step got added to a real feature over time, what would happen to this code's shape, concretely? *(It nests one level deeper for every additional step — a real, widely-recognized pattern ugly enough to have its own common nickname among working developers, "callback hell": not just aesthetically unpleasant, but genuinely harder to add proper error handling to, since each nested callback needs its own separate check, and harder to reason about top-to-bottom, since the actual order of operations is buried inside increasing indentation rather than read as a simple sequence.)*
+
+This is the concrete, felt problem Promises were designed to solve — not an arbitrary new syntax preference. Everything from here through the rest of this session — chaining, `async`/`await` reading top-to-bottom instead of nesting — is a direct, motivated answer to exactly this shape of pain, not a stylistic upgrade for its own sake.
 
 **The three states, and the one-way rule.** A Promise starts **pending**, and settles exactly once, permanently, into either **fulfilled** (succeeded, with a value) or **rejected** (failed, with a reason) — never both, never more than once, and never back to pending again.
 
@@ -160,7 +238,7 @@ checkTaskTitle("")
 
 ---
 
-## 3. `async`/`await` — Confirmed Syntax Sugar, Shown Side by Side
+## 4. `async`/`await` — Confirmed Syntax Sugar, Shown Side by Side
 
 **The claim, demonstrated, not just asserted.** Here is the *exact same logic*, written both ways, so "syntax sugar" stops being an abstract phrase and becomes something you can see directly:
 
@@ -265,7 +343,7 @@ async function loadUserPage() {
 
 ---
 
-## 4. Promise Combinators — Four Tools for Four Different Situations
+## 5. Promise Combinators — Four Tools for Four Different Situations
 
 | Combinator | Waits for | Resolves when | Rejects when |
 |---|---|---|---|
@@ -287,7 +365,7 @@ async function fetchWithTimeout(url) {
 
 ---
 
-## 5. A First Look at `for await...of` — Full Depth Next Session
+## 6. A First Look at `for await...of` — Full Depth Next Session
 
 One more shape worth recognizing before you meet it properly: an **async generator** can `yield` values one at a time from an ongoing asynchronous source (like a streaming response), and `for await...of` consumes them as they arrive, pausing between each one:
 
@@ -307,7 +385,7 @@ This is exactly the mechanism behind streaming a chat response token by token in
 
 ---
 
-## 6. Bringing It Together — Both Threads, Async Doing Real Work
+## 7. Bringing It Together — Both Threads, Async Doing Real Work
 
 ```javascript
 // ───── Thread A: BIA ─────
@@ -351,15 +429,15 @@ Notice Thread B's `completeTaskAndSync` deliberately uses `Promise.allSettled()`
 
 ---
 
-## 7. Production Relevance
+## 8. Production Relevance
 
 **The `1, 4, 3, 2` microtask-versus-macrotask ordering is a genuinely common source of real production bugs**, specifically in code that assumes a `setTimeout(fn, 0)` runs "right after" the current synchronous code — it does not; any pending Promise callback runs first, every time, and code relying on the wrong assumption produces intermittent, hard-to-reproduce bugs that only show up once a Promise happens to be in flight at the same moment.
 
-**The sequential-await mistake is, empirically, one of the most common async performance issues found in real code review** — two or more independent `await`s written one after another, needlessly doubling (or worse) a page's load time, exactly the pattern Section 3 demonstrated and fixed with `Promise.all()`.
+**The sequential-await mistake is, empirically, one of the most common async performance issues found in real code review** — two or more independent `await`s written one after another, needlessly doubling (or worse) a page's load time, exactly the pattern Section 4 demonstrated and fixed with `Promise.all()`.
 
 ---
 
-## 8. Practice Exercises
+## 9. Practice Exercises
 
 ### Exercise 1 (Easy) — Trace the Order
 
@@ -388,7 +466,7 @@ Write `sendMessageWithRetry(chatId, text, maxRetries)` that attempts `sendMessag
 
 ---
 
-## 9. Common Pitfalls
+## 10. Common Pitfalls
 
 ### Pitfall 1 — `await` Inside `.forEach()` Does Nothing Useful (This Session's Official Gotcha)
 
@@ -421,14 +499,14 @@ async function saveAllTasksParallel(tasks) {
   console.log("All tasks saved!");
 }
 ```
-Use `for...of` when saves must happen one at a time, in order; use `Promise.all(array.map(...))` when they're independent and can run together — the same sequential-vs-parallel decision from Section 3, now applied to a loop instead of two named variables.
+Use `for...of` when saves must happen one at a time, in order; use `Promise.all(array.map(...))` when they're independent and can run together — the same sequential-vs-parallel decision from Section 4, now applied to a loop instead of two named variables.
 
 ---
 
-## 10. Further Reading
+## 11. Further Reading
 
 **MDN — Using Promises**
-The official, complete reference for Section 2.
+The official, complete reference for Section 3.
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Using_promises
 
 **MDN — The Event Loop**
@@ -436,7 +514,7 @@ The official reference for Section 1's mechanism, including the microtask/macrot
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Execution_context/Event_loop
 
 **MDN — async function**
-The official reference for Section 3.
+The official reference for Section 4.
 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function
 
 **MDN — Promise.allSettled(), Promise.any(), AbortSignal.timeout()**
@@ -449,7 +527,7 @@ https://www.theodinproject.com/paths/full-stack-javascript/courses/javascript
 
 ---
 
-## 11. How This Session Compares to The Odin Project
+## 12. How This Session Compares to The Odin Project
 
 Odin's async lessons cover Promises, `fetch`, and `async`/`await` at a solid introductory level, building directly toward its Weather App project.
 
@@ -459,13 +537,13 @@ Odin's async lessons cover Promises, `fetch`, and `async`/`await` at a solid int
 
 ---
 
-## 12. Bridge to Session S11
+## 13. Bridge to Session S11
 
-Section 5 gave you the shape of async generators without their real depth. Session S11 delivers that depth in full — generator functions from first principles, and the actual, complete `parseAgentSSE` implementation this session only previewed, parsing a real server-sent-events stream chunk by chunk, handling the exact buffer-accumulation edge cases (a chunk splitting an event in half) that a naive implementation gets wrong. Everything from today — the event loop, `await`, `Promise.all`, `AbortSignal` — is the foundation that implementation sits on, not separate from it.
+Section 6 gave you the shape of async generators without their real depth. Session S11 delivers that depth in full — generator functions from first principles, and the actual, complete `parseAgentSSE` implementation this session only previewed, parsing a real server-sent-events stream chunk by chunk, handling the exact buffer-accumulation edge cases (a chunk splitting an event in half) that a naive implementation gets wrong. Everything from today — the event loop, `await`, `Promise.all`, `AbortSignal` — is the foundation that implementation sits on, not separate from it.
 
 ---
 
-## 13. Key Takeaways Checklist
+## 14. Key Takeaways Checklist
 
 - [ ] Trace the `1, 4, 3, 2` example from memory, explaining each step in terms of the call stack, microtask queue, and macrotask queue
 - [ ] State the exact rule that decides event loop ordering, not just "Promises go first"

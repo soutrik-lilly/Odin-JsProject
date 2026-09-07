@@ -373,6 +373,83 @@ project.addTask("Finish S07");
 console.log(project.tasks);  // [{title: "Finish S07", done: false}]
 ```
 
+### Getters and Setters — a Property That's Secretly a Method
+
+Section 8's own capstone, later in this document, uses `get remainingCount()` without ever explaining the syntax — here's that explanation, before you meet it again.
+
+```javascript
+class Project {
+  tasks = [];
+
+  addTask(title) {
+    this.tasks.push({title, done: false});
+  }
+
+  get remainingCount() {
+    return this.tasks.filter(t => !t.done).length;
+  }
+}
+
+const project = new Project();
+project.addTask("Buy milk");
+console.log(project.remainingCount);   // 1 — read like a property, NO parentheses
+```
+
+`get` defines a **getter** — a method that runs automatically whenever its name is *read* like a plain property, with no `()` at the call site at all. This matters precisely because it hides real computation behind what looks like simple data access: `project.remainingCount` looks identical to reading a stored field, but it's actually recalculating `this.tasks.filter(...).length` fresh, every single time it's read — always accurate, never capable of silently going stale the way a manually-maintained `this.remainingCount` counter could if you forgot to update it after every add/complete/delete.
+
+**`set` is the write-side equivalent**, running automatically when something is *assigned* to the property name:
+
+```javascript
+class Project {
+  #name = "";
+
+  get name() {
+    return this.#name;
+  }
+
+  set name(value) {
+    if (value.trim().length === 0) {
+      throw new Error("Project name cannot be empty");
+    }
+    this.#name = value.trim();
+  }
+}
+
+const project = new Project();
+project.name = "  Learn JavaScript  ";   // runs the setter — validates and trims
+console.log(project.name);                // "Learn JavaScript" — runs the getter
+// project.name = "";                     // throws — the setter's validation catches it
+```
+
+A setter lets you enforce a rule (never an empty name) at the exact moment a value is assigned, while every reader of `project.name` still just sees an ordinary-looking property — the validation is invisible to the calling code, not an extra method call they need to remember to use.
+
+### Private Class Fields — Real, Enforced Privacy, Not a Naming Convention
+
+Section 3's factory-function closures gave you genuinely private state, with one real cost: no `class` and no `this`, since a closure's privacy comes specifically from *not* being a class in the first place. The `#` prefix gives classes that exact same guarantee directly:
+
+```javascript
+class Project {
+  #tasks = [];   // the # makes this genuinely inaccessible from outside the class
+
+  addTask(title) {
+    this.#tasks.push({title, done: false});
+  }
+
+  get taskCount() {
+    return this.#tasks.length;
+  }
+}
+
+const project = new Project();
+project.addTask("Buy milk");
+console.log(project.taskCount);   // 1
+console.log(project.#tasks);      // SyntaxError — not even valid to write outside the class body
+```
+
+**This is a hard language-level restriction, not a discouraged-but-possible convention the way a leading underscore (`_tasks`) has always been.** `_tasks` (no `#`) is a *naming convention* — a signal to other developers "please don't touch this," entirely unenforced, and still perfectly accessible from outside if someone ignores the signal. `#tasks` is enforced by the JavaScript engine itself: `project.#tasks` outside the class body isn't just bad practice, it's a genuine syntax error that stops the program from running at all. Combined with getters (`get taskCount()`, reading the private field indirectly) and setters (validating before ever touching the private field), `#` fields are the current, idiomatic way to get real encapsulation inside a class — the class-based equivalent of Section 3's closure privacy, not a competing idea.
+
+**Predict before you peek:** given `#tasks` is enforced at the syntax level, could a subclass (`class ArchivedProject extends Project`) access its parent's `#tasks` field directly? *(No — private fields are genuinely private to the exact class that declares them, not inherited access the way a regular method or a protected field in some other languages would be. A subclass must go through the parent's own public getters/methods, exactly like any other outside code — inheritance doesn't create an exception to `#`'s enforcement.)*
+
 ---
 
 ## 7. Choosing Among the Four Patterns, Deliberately
