@@ -70,6 +70,33 @@ function renderTask(task) {
 }
 ```
 
+### Traversing the Tree — Parent, Children, Siblings
+
+```javascript
+const item = document.querySelector(".history-item");
+
+console.log(item.parentNode);        // the .history-list <ul> containing it
+console.log(item.parentElement);     // usually identical to parentNode — differs only for non-element parents
+console.log(item.children);          // an HTMLCollection of this item's own direct child elements
+console.log(item.nextElementSibling);     // the item right after it, or null if it's the last
+console.log(item.previousElementSibling); // the item right before it, or null if it's the first
+```
+
+These read directly off the live tree, no query needed — useful specifically when you already have one element in hand (from a delegated click, say) and need to reach a nearby relative rather than re-querying the whole document. `.children` (element children only) is almost always what you want over the older `.childNodes` (which also includes text nodes and comments — real, but noisy for typical DOM work).
+
+### Reading and Writing Attributes Directly
+
+```javascript
+const link = document.querySelector("a");
+
+link.setAttribute("aria-label", "Open conversation");
+console.log(link.getAttribute("aria-label"));   // "Open conversation"
+console.log(link.hasAttribute("href"));           // true or false
+link.removeAttribute("aria-label");
+```
+
+`dataset` (already used since Session S01 for `data-*` attributes specifically) is a convenient shortcut for exactly that one attribute family. `setAttribute`/`getAttribute`/`removeAttribute`/`hasAttribute` are the general-purpose tools for *any* HTML attribute, `data-*` or otherwise — `aria-label`, `href`, `disabled` — and are the ones you'll reach for the moment an attribute isn't a `data-*` one.
+
 **Mini-exercise:** Given an array of three task objects (`{title, done}`), use `document.createElement`, `.textContent`, and `.classList` to render all three as `<li>` elements appended to a `<ul id="task-list">` already in your HTML.
 
 **Solution:**

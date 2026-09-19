@@ -416,6 +416,26 @@ console.log(total);  // 3
 
 ## 7. `Map`, `Set`, and Iterating Over Objects
 
+### `for...in` vs. `for...of` — a Commonly Confused Pair, Distinguished Precisely
+
+```javascript
+const task = {title: "Buy milk", done: false};
+for (const key in task) {
+  console.log(key);   // "title", "done" — the KEYS of an object
+}
+
+const tags = ["work", "urgent"];
+for (const tag of tags) {
+  console.log(tag);   // "work", "urgent" — the VALUES of an iterable
+}
+```
+
+`for...in` iterates over an object's enumerable **property names** (keys) — it's built for plain objects. `for...of` (already used throughout this session, for arrays) iterates over the **values** produced by anything implementing the iterable protocol below — arrays, strings, `Map`s, `Set`s, and generators (Session S11), but **not** plain objects directly, which is exactly why `Object.entries()` earlier in this section exists as the bridge between the two. Using `for...in` on an array technically works but iterates its numeric indices as strings and is real, documented enough of a footgun (it can pick up inherited properties too) that `for...of` combined with array methods is the correct default for arrays, full stop.
+
+### The Iterable Protocol — Why `for...of` Can Even Work
+
+**Predict before you peek:** Session S11 will show you generator functions that plug directly into `for...of` with no special setup. What do you think makes that possible — is `for...of` hardcoded to recognize arrays, strings, and generators as three special cases, or is something more general going on? *(Something more general: any object exposing a method named `Symbol.iterator` — a special, built-in `Symbol` value used specifically as a method name — is considered "iterable," and `for...of` works with *any* object satisfying that one contract, not a hardcoded list. Arrays, strings, `Map`s, and `Set`s all implement `Symbol.iterator` internally; a generator function's real magic, which Session S11 covers properly, is that calling it automatically produces an object that already satisfies this exact protocol.)* This is the actual mechanism — not folklore — behind why Session S06's `[...someSet]` spread and `for...of` both "just work" on so many different types: they all agree to the same underlying contract.
+
 ### `Map` — a real key-value collection, not a plain object pretending to be one
 
 You've used plain objects as key-value stores throughout this session (`tasksById[task.id]`, from Session S06's earlier reduce example). `Map` is a dedicated, purpose-built collection for exactly that job, with real advantages a plain object doesn't have:

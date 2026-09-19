@@ -176,6 +176,17 @@ const canProceed = true || false; // logical OR
 
 `%` (the **modulo** operator) returns the remainder of a division — `10 % 3` is `1`. It looks obscure at first and turns out to be one of the most-used operators in real code: checking if a number is even (`n % 2 === 0`), or — directly relevant to a chat UI — deciding which of several rotating loading messages to show based on how many have already displayed.
 
+### Compound Assignment — a Shortcut Worth Recognizing on Sight
+
+```javascript
+let messageCount = 5;
+messageCount += 1;   // shorthand for: messageCount = messageCount + 1
+messageCount -= 2;   // messageCount = messageCount - 2
+messageCount *= 3;   // messageCount = messageCount * 3
+```
+
+Every arithmetic operator has a compound-assignment form: `x += y` is exactly, mechanically equivalent to `x = x + y` — a shorter way to write "update this variable based on its own current value," nothing more exotic than that. `messageCount++` and `messageCount--` (already used earlier in this session's `for` loop) are themselves compound shorthand too, specifically for `+= 1` and `-= 1`. You'll see `+=` constantly in real code — accumulating a running total, building up a string piece by piece — and recognizing it instantly as "the same variable, updated" rather than pausing to decode it is worth the small effort of memorizing the pattern now.
+
 ### Conditionals — the actual decision-making mechanism
 
 ```javascript
@@ -232,6 +243,22 @@ if (taskCount === 0) {
   console.log("You have tasks");
 }
 ```
+
+### `break` and `continue` — Interrupting a Loop Deliberately
+
+```javascript
+for (let i = 0; i < 10; i++) {
+  if (i === 5) break;       // exits the loop entirely, right now
+  console.log(i);           // prints 0, 1, 2, 3, 4 — then stops
+}
+
+for (let i = 0; i < 5; i++) {
+  if (i === 2) continue;    // skips ONLY this iteration, loop keeps going
+  console.log(i);           // prints 0, 1, 3, 4 — 2 is skipped, but the loop doesn't stop
+}
+```
+
+`break` exits a loop immediately and completely — nothing after it, for any remaining iteration, ever runs. `continue` is narrower: it skips only the *rest of the current iteration*, then moves on to the next one as normal — the loop itself keeps going. **Predict before you peek:** given that distinction, if you were searching an array for the first task matching a condition and wanted to stop looking the instant you found it, would you reach for `break` or `continue`? *(`break` — you want the entire search to stop, not just skip past the current item and keep looking at the rest. `continue` would be the right tool for the opposite situation: skip a task that doesn't apply yet, but keep checking every other one.)*
 
 ### `while` and `do...while` — Looping When You Don't Know the Count in Advance
 
@@ -361,6 +388,30 @@ console.log(isTaskOverdue(3, 5));      // true
 console.log(isMessageLong("hi"));       // false
 ```
 
+### Default Parameters — a Fallback When an Argument Is Missing
+
+```javascript
+function createTask(title, priority = "normal") {
+  return {title, priority};
+}
+
+console.log(createTask("Buy milk"));               // {title: "Buy milk", priority: "normal"}
+console.log(createTask("Fix bug", "urgent"));       // {title: "Fix bug", priority: "urgent"}
+```
+
+`priority = "normal"` in the parameter list means "if the caller doesn't supply this argument at all, use this value instead." **The trigger is specifically an argument being *omitted* (or explicitly passed as `undefined`) — not merely being falsy.** Passing `""` or `0` on purpose still uses your actual value, not the default; only a genuinely missing argument (or `undefined`) falls back — the same `undefined`-specific behavior Session S06 will later show default *values in destructuring* sharing exactly this rule, since it's the same underlying mechanism in both places.
+
+### IIFE — a Function That Runs Itself Immediately, Once
+
+```javascript
+(function () {
+  const secret = "only visible in here";
+  console.log("This runs immediately, once, and secret is already gone by the next line.");
+})();
+```
+
+An **Immediately Invoked Function Expression** — a function defined and called in the same breath, via the trailing `()` right after its own closing brace — exists for one specific reason: to create a throwaway scope that runs once and disappears, without leaving any named function or variable behind in the surrounding code. This was the standard way to keep a whole file's variables private before ES Modules existed — Session S06's ES Modules section already gave you the modern, preferred replacement for this exact job, so you're now positioned to recognize *why* older code reaches for this pattern rather than needing it yourself: real code you'll write in this syllabus uses modules for the isolation an IIFE used to provide, but IIFEs remain common enough in older/existing codebases, and in certain library-bundling contexts, that recognizing the shape on sight matters even though you won't reach for it as your own default tool.
+
 ---
 
 ## 7. Scope — Where a Variable Actually Lives
@@ -467,6 +518,28 @@ function outer() {
 outer();  // prints "outer"
 ```
 This introduces one more real term worth knowing: **shadowing** — when a variable declared in an inner scope has the *same name* as one in an outer scope, the inner one wins for any code inside that inner scope, without altering or deleting the outer one at all. `inner()`'s scope chain finds `outer`'s `message` before it ever needs to look further out to the global `message` — the global variable is still there, completely untouched, just not what `inner()` sees.
+
+### Hoisting — Why a Function Can Be Called Before Its Own Declaration
+
+**Predict before you peek:**
+```javascript
+console.log(greet("Soutrik"));
+
+function greet(name) {
+  return "Hello, " + name;
+}
+```
+Does this throw an error, since `greet` is called *before* the line where it's defined — or does it work? *(It works, correctly printing "Hello, Soutrik" — a genuine, real JavaScript behavior called **hoisting**: function *declarations* (written with the `function` keyword, as here) are conceptually moved to the top of their containing scope before any code actually runs, making them callable from anywhere in that scope, including lines physically written above the declaration itself.)*
+
+**This does not apply the same way to function expressions or arrow functions assigned to a variable:**
+```javascript
+console.log(add(2, 3));   // TypeError: add is not a function
+
+const add = (a, b) => a + b;
+```
+Here, `add` is hoisted as a *variable* (Session S05's own `let`/`const` scope rules apply), but its *value* — the actual arrow function — isn't assigned until execution reaches that line. Calling it before that point finds a variable that exists but doesn't yet hold a function, producing a different, real error.
+
+**The practical rule this leaves you with, not just trivia to memorize:** function *declarations* are safe to call from anywhere in their scope; `const`/`let` functions are not, and relying on hoisting for them will produce a real bug. This is one of the most commonly asked "explain this JavaScript behavior" questions in technical interviews specifically because it trips up people who've only ever seen `function` declarations behave this way and haven't tested whether the same courtesy extends to the other syntax — it doesn't, and now you know precisely why, not just that it doesn't.
 
 ---
 

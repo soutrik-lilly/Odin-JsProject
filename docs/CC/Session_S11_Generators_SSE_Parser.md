@@ -154,6 +154,16 @@ const reader = response.body.getReader();
 ```
 `getReader()` creates a reader **locked** to that stream — no other code can read from the same stream while this reader holds the lock, which is exactly why today's real implementation calls `reader.releaseLock()` in a `finally` block, so the stream is always properly released even if something goes wrong partway through.
 
+### CORS — Why a Fetch Can Fail Before It Ever Reaches Your Code
+
+```javascript
+// A fetch to a different origin than the page itself was served from:
+fetch("https://api.example.com/data")
+// TypeError: Failed to fetch — blocked by CORS policy, even though the server responded
+```
+
+**Cross-Origin Resource Sharing** is a browser-enforced security boundary, not a network failure: by default, a page served from one origin (scheme + domain + port) cannot read the response from a `fetch` to a *different* origin, unless that other server explicitly opts in via response headers (`Access-Control-Allow-Origin`, naming which origins may read its responses). The request genuinely reaches the server and the server genuinely responds — the browser then discards the response before your code ever sees it, specifically to stop a malicious page from silently reading data from a service you happen to be logged into elsewhere. This is precisely why the real BIA UI's own Session S09/S12 `fetch` calls target the *same-origin* Express BFF rather than calling an external API directly from the browser — the BFF, running server-side, faces no CORS restriction at all, since CORS is a browser-only enforcement mechanism, never applied to server-to-server requests.
+
 ---
 
 ## 3. SSE Buffer Accumulation — the Mechanism, Traced

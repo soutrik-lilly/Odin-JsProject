@@ -160,6 +160,17 @@ brokenTimer.start();  // NaN NaN NaN — confirms the arrow function was doing r
 
 **Two real, industry-wide reference points:** this exact four-rules-plus-arrow-functions framework is the standard teaching structure used across the most respected JavaScript education resources, including Kyle Simpson's widely-read *You Don't Know JS* book series, which dedicates an entire chapter to precisely this priority ordering. And the "detached method loses its `this`" bug from Rule 2's predict-before-you-peek is one of the most frequently reported real bugs in event-handler code specifically — passing `this.handleClick` as a callback without `.bind()` or an arrow function wrapper is a well-documented, extremely common mistake in pre-hooks-era React class components, which is exactly why modern React (arrow-function class properties, or function components entirely) largely designed the problem away rather than just warning about it.
 
+### `globalThis` — One Name for "the Global Object," Everywhere
+
+Rule 1's default binding mentioned `this` falling back to "the global object" in non-strict code — but which object that actually *is* depends on where the code runs: `window` in a browser, `global` in Node.js. `globalThis` is a single, standardized name that refers to the correct global object automatically, regardless of environment:
+
+```javascript
+console.log(globalThis === window);   // true, in a browser
+// console.log(globalThis === global);  // true, in Node.js — same code, different environment
+```
+
+This is a direct, concrete instance of Session S05's "one language, two environments" lesson — code checking `globalThis` works identically whether it happens to run in a browser or in Node, where checking `window` directly would simply crash with a `ReferenceError` the moment it ran outside a browser.
+
 ---
 
 ## 3. Factory Functions — Functions That Build Objects
@@ -449,6 +460,21 @@ console.log(project.#tasks);      // SyntaxError — not even valid to write out
 **This is a hard language-level restriction, not a discouraged-but-possible convention the way a leading underscore (`_tasks`) has always been.** `_tasks` (no `#`) is a *naming convention* — a signal to other developers "please don't touch this," entirely unenforced, and still perfectly accessible from outside if someone ignores the signal. `#tasks` is enforced by the JavaScript engine itself: `project.#tasks` outside the class body isn't just bad practice, it's a genuine syntax error that stops the program from running at all. Combined with getters (`get taskCount()`, reading the private field indirectly) and setters (validating before ever touching the private field), `#` fields are the current, idiomatic way to get real encapsulation inside a class — the class-based equivalent of Section 3's closure privacy, not a competing idea.
 
 **Predict before you peek:** given `#tasks` is enforced at the syntax level, could a subclass (`class ArchivedProject extends Project`) access its parent's `#tasks` field directly? *(No — private fields are genuinely private to the exact class that declares them, not inherited access the way a regular method or a protected field in some other languages would be. A subclass must go through the parent's own public getters/methods, exactly like any other outside code — inheritance doesn't create an exception to `#`'s enforcement.)*
+
+### `instanceof` — Checking What Something Actually Is
+
+```javascript
+const project = new Project("Learn JavaScript");
+console.log(project instanceof Project);   // true
+console.log(project instanceof Object);    // true — every class ultimately descends from Object
+
+class ArchivedProject extends Project {}
+const archived = new ArchivedProject("Old work");
+console.log(archived instanceof Project);        // true — inheritance means an ArchivedProject IS-A Project too
+console.log(archived instanceof ArchivedProject); // true
+```
+
+`instanceof` checks whether an object's prototype chain (Section 5) includes the given class's `.prototype` anywhere along it — which is precisely why a subclass instance reports `true` for both its own class *and* every class it inherits from, not just the most specific one. This is the exact mechanism behind Session S07's own Exercise 3 (`summarizeConversation` distinguishing `UserMessage` from `AssistantMessage`) and the `ValidationError` check you'll meet properly in Session S10's error-handling section — both rely on `instanceof` walking this same chain to answer "is this genuinely one of these," not a string comparison against some hand-maintained `.type` field that could drift out of sync with what the object actually is.
 
 ---
 
